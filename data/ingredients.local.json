@@ -1,0 +1,34 @@
+{
+  "salmon": {
+    "id": "custom:salmon",
+    "name": "salmon",
+    "source": "fallback",
+    "fdcId": null,
+    "category": "protein",
+    "kcal": 208,
+    "protein": 20,
+    "cost": 3.2
+  },
+  "pineapple": {
+    "id": "custom:pineapple",
+    "name": "pineapple",
+    "source": "usda",
+    "fdcId": 2709260,
+    "description": "Pineapple, raw",
+    "category": "fruit",
+    "kcal": 60,
+    "protein": 0.5,
+    "cost": 0.8
+  },
+  "turkey": {
+    "id": "custom:turkey",
+    "name": "turkey",
+    "source": "usda",
+    "fdcId": 173857,
+    "description": "Bologna, turkey",
+    "category": "protein",
+    "kcal": 874,
+    "protein": 11.4,
+    "cost": 0.75
+  }
+}
