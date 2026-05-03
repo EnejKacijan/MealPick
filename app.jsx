@@ -10,14 +10,15 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function MealPickApp({ tweaks, setTweak, initialScreen = 'home', initialMealId, homeVariant = 'stacked', showMockStatusBar = false }) {
   const defaultState = {
-    pantry: ['eggs', 'pasta', 'cheese', 'tuna', 'bread', 'rice', 'butter', 'tomato_sauce', 'garlic'],
+    setupComplete: false,
+    pantry: [],
     customIngredients: [],
     resolvedIngredients: {},
     mode: tweaks.defaultMode,
     budget: 5,
     time: 15,
     profile: {
-      name: 'Enej',
+      name: '',
       goal: 'save_money',
       servings: 1,
     },
@@ -32,7 +33,10 @@ function MealPickApp({ tweaks, setTweak, initialScreen = 'home', initialMealId, 
       if (!FOOD_GOALS.some((goal) => goal.id === profile.goal)) {
         profile.goal = 'save_money';
       }
-      return { ...defaultState, ...saved, profile };
+      const migratedSetupComplete = typeof saved.setupComplete === 'boolean'
+        ? saved.setupComplete
+        : Boolean((saved.profile?.name || '').trim() || (saved.pantry || []).length);
+      return { ...defaultState, ...saved, setupComplete: migratedSetupComplete, profile };
     } catch {
       return defaultState;
     }
@@ -113,7 +117,11 @@ function MealPickApp({ tweaks, setTweak, initialScreen = 'home', initialMealId, 
         }
       `}</style>
 
-      {screen === 'home' && (
+      {!state.setupComplete && screen !== 'profile' && (
+        <MPSetupScreen state={state} setState={setState}
+          onDone={() => setScreen('home')} />
+      )}
+      {state.setupComplete && screen === 'home' && (
         <MPHomeScreen state={state} setState={setState}
           mode={state.mode} density={tweaks.density}
           onSuggest={onSuggest}
@@ -124,7 +132,7 @@ function MealPickApp({ tweaks, setTweak, initialScreen = 'home', initialMealId, 
           apiStatus={apiStatus}
           variant={homeVariant} />
       )}
-      {screen === 'results' && (
+      {state.setupComplete && screen === 'results' && (
         <MPResultsScreen state={state}
           revealMode={tweaks.revealMode}
           onBack={() => setScreen('home')}
@@ -132,26 +140,26 @@ function MealPickApp({ tweaks, setTweak, initialScreen = 'home', initialMealId, 
           onNav={onNav}
           showStatusBar={showMockStatusBar} />
       )}
-      {screen === 'detail' && (
+      {state.setupComplete && screen === 'detail' && (
         <MPDetailScreen mealId={mealId} state={state}
           onBack={() => setScreen('results')}
           setState={setState}
           onConfirm={() => onConfirmMeal(mealId)}
           showStatusBar={showMockStatusBar} />
       )}
-      {screen === 'pantry' && (
+      {state.setupComplete && screen === 'pantry' && (
         <MPPantryScreen state={state} setState={setState}
           onBack={() => setScreen('home')}
           onNav={onNav}
           showStatusBar={showMockStatusBar} />
       )}
-      {screen === 'saved' && (
+      {state.setupComplete && screen === 'saved' && (
         <MPSavedScreen state={state}
           onPickMeal={onPickMeal}
           onNav={onNav}
           showStatusBar={showMockStatusBar} />
       )}
-      {screen === 'profile' && (
+      {state.setupComplete && screen === 'profile' && (
         <MPProfileScreen state={state}
           setState={setState}
           onBack={() => setScreen('home')}
@@ -295,6 +303,182 @@ function MPSavedScreen({ state, onPickMeal, onNav, showStatusBar = false }) {
       </div>
 
       <MPBottomNav active="history" onChange={onNav} />
+    </div>
+  );
+}
+
+function MPSetupScreen({ state, setState, onDone }) {
+  const ui = mpUI;
+  const profile = state.profile || {};
+  const starter = ['eggs', 'rice', 'pasta', 'cheese', 'tuna', 'bread', 'chicken', 'beans', 'oats', 'milk', 'yogurt', 'potato'];
+  const pantrySet = new Set(state.pantry || []);
+  const setProfile = (patch) => {
+    setState((s) => ({ ...s, profile: { ...(s.profile || {}), ...patch } }));
+  };
+  const togglePantry = (id) => {
+    setState((s) => ({
+      ...s,
+      pantry: (s.pantry || []).includes(id)
+        ? s.pantry.filter((item) => item !== id)
+        : [...(s.pantry || []), id],
+    }));
+  };
+  const finish = () => {
+    setState((s) => ({
+      ...s,
+      setupComplete: true,
+      profile: {
+        ...(s.profile || {}),
+        name: (s.profile?.name || '').trim() || 'Meal picker',
+        goal: s.profile?.goal || 'save_money',
+        servings: s.profile?.servings || 1,
+      },
+      pantry: (s.pantry || []).length ? s.pantry : ['eggs', 'rice', 'pasta'],
+    }));
+    onDone();
+  };
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, background: ui.paper,
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      fontFamily: ui.body, color: ui.ink,
+    }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 22px 130px',
+        display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div>
+          <div style={{ fontFamily: ui.display, fontSize: 20, fontWeight: 700,
+            letterSpacing: '-0.01em', color: ui.ink, marginBottom: 22 }}>
+            MealPick
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: ui.ink3, fontFamily: ui.mono,
+            marginBottom: 6 }}>
+            First setup
+          </div>
+          <h1 style={{ fontFamily: ui.display, fontSize: 38, fontWeight: 700,
+            letterSpacing: '-0.03em', lineHeight: 0.98, margin: 0, color: ui.ink }}>
+            Make it yours.<br/>
+            <span style={{ color: ui.green }}>Then eat.</span>
+          </h1>
+        </div>
+
+        <MPProfileField label="Name" value={profile.name || ''}
+          onChange={(value) => setProfile({ name: value })} />
+
+        <div>
+          <MPSectionHeader kicker="Goal" title="Food goal" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+            {FOOD_GOALS.map((goal) => {
+              const active = (profile.goal || 'save_money') === goal.id;
+              return (
+                <button key={goal.id} onClick={() => setProfile({ goal: goal.id })}
+                  style={{
+                    appearance: 'none', border: `1.5px solid ${active ? ui.ink : ui.line}`,
+                    background: active ? ui.greenSoft : ui.paper2,
+                    borderRadius: 14, padding: '12px 14px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    textAlign: 'left', cursor: 'pointer',
+                  }}>
+                  <span style={{
+                    width: 32, height: 32, borderRadius: 11,
+                    background: active ? ui.ink : ui.paper,
+                    color: active ? ui.paper : ui.ink,
+                    border: `1px solid ${active ? ui.ink : ui.line}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: ui.mono, fontSize: 13, fontWeight: 800,
+                  }}>
+                    {goal.icon}
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: 'block', fontFamily: ui.display,
+                      fontSize: 17, fontWeight: 700, color: ui.ink }}>
+                      {goal.name}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 12, color: ui.ink2,
+                      marginTop: 2 }}>
+                      {goal.blurb}
+                    </span>
+                  </span>
+                  {active && <span style={{ width: 8, height: 8, borderRadius: 4,
+                    background: ui.ink }} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ background: ui.paper2, borderRadius: 16, border: `1px solid ${ui.line}`,
+          padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center' }}>
+            <div>
+              <div style={{ fontFamily: ui.display, fontSize: 18, fontWeight: 700 }}>
+                Servings
+              </div>
+              <div style={{ fontSize: 12, color: ui.ink2 }}>
+                How many people are eating?
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setProfile({ servings: Math.max(1, (profile.servings || 1) - 1) })}
+                style={profileButtonStyle(ui)}>-</button>
+              <span style={{ minWidth: 22, textAlign: 'center', fontFamily: ui.display,
+                fontSize: 20, fontWeight: 700 }}>
+                {profile.servings || 1}
+              </span>
+              <button onClick={() => setProfile({ servings: Math.min(6, (profile.servings || 1) + 1) })}
+                style={profileButtonStyle(ui)}>+</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <MPSectionHeader kicker="Pantry" title="What do you usually have?" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {starter.map((id) => {
+              const item = getPantryItem(id);
+              const active = pantrySet.has(id);
+              return (
+                <button key={id} onClick={() => togglePantry(id)}
+                  style={{
+                    appearance: 'none', border: `1.5px solid ${active ? ui.ink : ui.line}`,
+                    background: active ? ui.greenSoft : ui.paper,
+                    borderRadius: 14, padding: '10px 12px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}>
+                  <span style={{ fontSize: 20 }}>{item.emoji}</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: ui.ink }}>
+                    {item.name}
+                  </span>
+                  {active && <span style={{ width: 8, height: 8, borderRadius: 4,
+                    background: ui.ink }} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: '14px 22px 28px', background: ui.paper,
+        borderTop: `1px solid ${ui.line}` }}>
+        <button onClick={finish}
+          style={{
+            width: '100%', appearance: 'none', border: 0, cursor: 'pointer',
+            background: ui.ink, color: ui.paper, padding: '18px 22px',
+            borderRadius: 18, fontSize: 17, fontWeight: 700,
+            fontFamily: ui.display, letterSpacing: '-0.01em',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            boxShadow: '0 8px 24px rgba(20,30,20,0.18)',
+          }}>
+          <span>Start picking meals</span>
+          <span style={{ fontFamily: ui.mono, fontSize: 12, opacity: 0.7 }}>
+            →
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
